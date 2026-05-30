@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEET Study Hub | Pomodoro</title>
+  <!-- Google Fonts for futuristic, minimal look -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <!-- Lofi background ambient glowing circles -->
+  <div class="glow-bg">
+    <div class="glow-orb purple-glow"></div>
+    <div class="glow-orb cyan-glow"></div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="pulse-dot"></span>
+        <h1>NEET_STUDY_HUB</h1>
+      </div>
+      <div class="system-status">
+        <span id="backend-status" class="status-badge offline">SYS_OFFLINE</span>
+        <button id="lofi-toggle" class="btn-lofi" title="Toggle lofi rain ambient generator">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-music"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          LOFI_AMBIENT: OFF
+        </button>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      
+      <!-- LEFT SIDE: TIMER -->
+      <section class="timer-section">
+        <div class="subject-display-badge">
+          CURRENT_SUBJECT: <span id="active-subject-badge">None</span>
+        </div>
+        
+        <!-- Circular Countdown Timer Container -->
+        <div class="timer-circle-container">
+          <svg class="timer-svg" viewBox="0 0 200 200">
+            <!-- Trail Circle -->
+            <circle class="timer-trail" cx="100" cy="100" r="88" />
+            <!-- Progress Circle -->
+            <circle class="timer-progress" cx="100" cy="100" r="88" />
+          </svg>
+          
+          <!-- Inner details -->
+          <div class="timer-inner">
+            <span id="timer-state-label" class="timer-state-label">STUDY</span>
+            <span id="time-display" class="time-display">25:00</span>
+            <span id="pomodoro-count-label" class="pomodoro-count-label">Session 1 of 4</span>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="timer-controls">
+          <button id="btn-start" class="btn btn-primary">START</button>
+          <button id="btn-pause" class="btn btn-secondary" disabled>PAUSE</button>
+          <button id="btn-reset" class="btn btn-danger">RESET</button>
+          <button id="btn-skip" class="btn btn-secondary">SKIP</button>
+        </div>
+
+        <!-- Motivational Quote Panel -->
+        <div id="quote-panel" class="quote-panel hidden">
+          <p id="quote-text" class="quote-text">"Abhi nahi toh kabhi nahi! Keep pushing, AIR 1 is waiting for you, Rohit! 🩺"</p>
+          <span class="quote-author">FRIDAY_MOTIVATION</span>
+        </div>
+      </section>
+
+      <!-- RIGHT SIDE: CONTROL & STATS PANEL -->
+      <section class="control-panel">
+        
+        <!-- PANEL: SUBJECT SELECTOR -->
+        <div class="panel-card">
+          <h2 class="panel-title">SUBJECT_SELECTOR</h2>
+          <div class="subject-input-group">
+            <input type="text" id="subject-input" placeholder="Type a subject name (e.g. Physics)..." maxlength="25">
+            <button id="btn-set-subject" class="btn btn-accent">SET</button>
+          </div>
+          <!-- Quick subjects -->
+          <div class="quick-subjects">
+            <button class="quick-sub-btn" data-sub="Physics">Physics</button>
+            <button class="quick-sub-btn" data-sub="Chemistry">Chemistry</button>
+            <button class="quick-sub-btn" data-sub="Botany">Botany</button>
+            <button class="quick-sub-btn" data-sub="Zoology">Zoology</button>
+          </div>
+        </div>
+
+        <!-- PANEL: TIMER SETTINGS -->
+        <div class="panel-card">
+          <h2 class="panel-title">TIMER_SETTINGS</h2>
+          <div class="settings-grid">
+            <div class="input-field">
+              <label for="study-duration">Study (mins)</label>
+              <input type="number" id="study-duration" value="25" min="1" max="120">
+            </div>
+            <div class="input-field">
+              <label for="short-break">Short Break (mins)</label>
+              <input type="number" id="short-break" value="5" min="1" max="60">
+            </div>
+            <div class="input-field">
+              <label for="long-break">Long Break (mins)</label>
+              <input type="number" id="long-break" value="15" min="1" max="90">
+            </div>
+          </div>
+          <button id="btn-save-settings" class="btn btn-secondary w-full mt-3">APPLY_CONFIG</button>
+        </div>
+
+        <!-- PANEL: STATS -->
+        <div class="panel-card">
+          <h2 class="panel-title">STATS_DASHBOARD</h2>
+          <div class="stats-row">
+            <div class="stat-box">
+              <span class="stat-number" id="stats-total-today">0</span>
+              <span class="stat-label">POMODOROS_TODAY</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-number" id="stats-total-time">0m</span>
+              <span class="stat-label">TOTAL_STUDY_TIME</span>
+            </div>
+          </div>
+          
+          <h3 class="sub-panel-title mt-4">SUBJECT_BREAKDOWN</h3>
+          <div id="subject-stats-list" class="subject-stats-list">
+            <!-- Dynamically populated stats -->
+            <p class="empty-list-text">No study sessions logged yet.</p>
+          </div>
+        </div>
+
+        <!-- PANEL: LOG HISTORY -->
+        <div class="panel-card">
+          <h2 class="panel-title">LOG_HISTORY</h2>
+          <div id="history-log-list" class="history-log-list">
+            <!-- Dynamically populated logs -->
+            <p class="empty-list-text">Your study log is empty.</p>
+          </div>
+          <button id="btn-clear-history" class="btn-text-link mt-3 hidden">CLEAR_ALL_LOGS</button>
+        </div>
+
+      </section>
+
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

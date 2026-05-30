@@ -1,0 +1,32 @@
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# Next.js build output
+.next/
+**/out/
+**/.next/
+
+# Environmental variables (crucial to NOT commit API keys!)
+.env
+.env.local
+.env.production
+.env.development
+.env.staging
+**/.env*
+
+# Logs
+*.log
+**/err.log
+**/out.log
+**/*.log
+
+# Project-specific local storage / state (avoid committing local user memory)
+backend/conversations.json
+backend/memory.json
+
+# IDEs and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
