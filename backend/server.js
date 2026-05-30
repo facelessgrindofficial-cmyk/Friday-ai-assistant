@@ -17,8 +17,69 @@ const VISION_REGEX = /\b(look\s+at\s+my\s+screen|screen\s*(pe)?\s*(kya|show|see)
 const SEARCH_REGEX = /\b(search|weather|gold\s*rate|bitcoin|cricket|news|price|score|stock)\b/i;
 const CLIPBOARD_REGEX = /\b(clipboard|copy|copied|paste|clipboard\s*pe)\b/i;
 
+// Helper to call Supabase REST API dynamically
+async function querySupabase(key, method = "GET", body = null) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY || 
+      process.env.SUPABASE_URL === "your_supabase_url_here" || 
+      process.env.SUPABASE_ANON_KEY === "your_supabase_key_here") {
+    return null;
+  }
+  try {
+    const url = method === "GET" 
+      ? `${process.env.SUPABASE_URL}/rest/v1/friday_state?key=eq.${key}&select=value`
+      : `${process.env.SUPABASE_URL}/rest/v1/friday_state`;
+    
+    const headers = {
+      "apikey": process.env.SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+    };
+    
+    if (method !== "GET") {
+      headers["Content-Type"] = "application/json";
+      headers["Prefer"] = "resolution=merge-duplicates";
+    }
+
+    const options = {
+      method,
+      headers
+    };
+
+    if (body) {
+      options.body = JSON.stringify({ key, value: body });
+    }
+
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Supabase query failed for key ${key}: ${res.status} ${errText}`);
+      return null;
+    }
+    
+    if (method === "GET") {
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return data[0].value;
+      }
+      return "PGRST116"; // Row not found indicator
+    }
+    return true;
+  } catch (e) {
+    console.error(`Supabase exception for key ${key}:`, e.message);
+    return null;
+  }
+}
+
 // Helper: Read memory
-function readMemory() {
+async function readMemory() {
+  const cloudVal = await querySupabase("memory", "GET");
+  if (cloudVal && cloudVal !== "PGRST116") {
+    return cloudVal;
+  } else if (cloudVal === "PGRST116") {
+    const defaultMemory = { user_name: "User", facts: [], preferences: {}, conversations_summary: "" };
+    await querySupabase("memory", "POST", defaultMemory);
+    return defaultMemory;
+  }
+
   if (!fsSync.existsSync(MEMORY_FILE)) {
     const defaultMemory = { user_name: "User", facts: [], preferences: {}, conversations_summary: "" };
     fsSync.writeFileSync(MEMORY_FILE, JSON.stringify(defaultMemory, null, 2));
@@ -32,8 +93,13 @@ function readMemory() {
 }
 
 // Helper: Write memory
-function writeMemory(memory) {
-  fsSync.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2));
+async function writeMemory(memory) {
+  await querySupabase("memory", "POST", memory);
+  try {
+    fsSync.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2));
+  } catch (e) {
+    console.error("Failed to write memory locally:", e);
+  }
 }
 
 // Helper: Web Search via DuckDuckGo HTML scraping with AbortController timeout
@@ -377,7 +443,7 @@ app.post("/api/chat", async (req, res) => {
     console.log(`Received message: ${message}`);
     
     // Load memory
-    const memory = readMemory();
+    const memory = await readMemory();
     
     // Check for vision query
     const isVisionQuery = VISION_REGEX.test(message);
@@ -541,7 +607,7 @@ You can execute tasks on the user's Windows computer by adding a special JSON ta
     if (memoryMatch) {
       try {
         const memoryUpdate = JSON.parse(memoryMatch[1]);
-        const currentMemory = readMemory();
+        const currentMemory = await readMemory();
         if (memoryUpdate.user_name) currentMemory.user_name = memoryUpdate.user_name;
         if (memoryUpdate.facts) {
           currentMemory.facts = Array.from(new Set([...currentMemory.facts, ...memoryUpdate.facts]));
@@ -552,7 +618,7 @@ You can execute tasks on the user's Windows computer by adding a special JSON ta
         if (memoryUpdate.conversations_summary) {
           currentMemory.conversations_summary = memoryUpdate.conversations_summary;
         }
-        writeMemory(currentMemory);
+        await writeMemory(currentMemory);
         console.log("Memory updated successfully.");
       } catch (e) {
         console.error("Failed to parse memory update JSON:", e);
@@ -596,7 +662,16 @@ app.post("/api/tts", async (req, res) => {
 });
 
 // Helper: Read conversations
-function readConversations() {
+async function readConversations() {
+  const cloudVal = await querySupabase("conversations", "GET");
+  if (cloudVal && cloudVal !== "PGRST116") {
+    return cloudVal;
+  } else if (cloudVal === "PGRST116") {
+    const defaultConvs = [];
+    await querySupabase("conversations", "POST", defaultConvs);
+    return defaultConvs;
+  }
+
   if (!fsSync.existsSync(CONVERSATIONS_FILE)) {
     const defaultConvs = [];
     fsSync.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(defaultConvs, null, 2));
@@ -610,20 +685,25 @@ function readConversations() {
 }
 
 // Helper: Write conversations
-function writeConversations(convs) {
-  fsSync.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(convs, null, 2));
+async function writeConversations(convs) {
+  await querySupabase("conversations", "POST", convs);
+  try {
+    fsSync.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(convs, null, 2));
+  } catch (e) {
+    console.error("Failed to write conversations locally:", e);
+  }
 }
 
 // GET all conversations
-app.get("/api/conversations", (req, res) => {
-  const convs = readConversations();
+app.get("/api/conversations", async (req, res) => {
+  const convs = await readConversations();
   res.json(convs);
 });
 
 // POST create a conversation
-app.post("/api/conversations", (req, res) => {
+app.post("/api/conversations", async (req, res) => {
   const { title } = req.body;
-  const convs = readConversations();
+  const convs = await readConversations();
   const newConv = {
     id: "conv_" + Date.now(),
     title: title || "New Session",
@@ -632,35 +712,35 @@ app.post("/api/conversations", (req, res) => {
     ]
   };
   convs.push(newConv);
-  writeConversations(convs);
+  await writeConversations(convs);
   res.json(newConv);
 });
 
 // PUT update a conversation
-app.put("/api/conversations/:id", (req, res) => {
+app.put("/api/conversations/:id", async (req, res) => {
   const { id } = req.params;
   const { title, messages } = req.body;
-  const convs = readConversations();
+  const convs = await readConversations();
   const idx = convs.findIndex(c => c.id === id);
   if (idx === -1) {
     return res.status(404).json({ error: "Conversation not found" });
   }
   if (title !== undefined) convs[idx].title = title;
   if (messages !== undefined) convs[idx].messages = messages;
-  writeConversations(convs);
+  await writeConversations(convs);
   res.json(convs[idx]);
 });
 
 // DELETE a conversation
-app.delete("/api/conversations/:id", (req, res) => {
+app.delete("/api/conversations/:id", async (req, res) => {
   const { id } = req.params;
-  let convs = readConversations();
+  let convs = await readConversations();
   const exists = convs.some(c => c.id === id);
   if (!exists) {
     return res.status(404).json({ error: "Conversation not found" });
   }
   convs = convs.filter(c => c.id !== id);
-  writeConversations(convs);
+  await writeConversations(convs);
   res.json({ success: true });
 });
 
@@ -693,14 +773,14 @@ app.post("/api/session/start", (req, res) => {
   });
 });
 
-app.post("/api/session/complete", (req, res) => {
+app.post("/api/session/complete", async (req, res) => {
   const { subject, type, duration } = req.body;
   console.log(`[NEET Session Completed] Type: ${type}, Subject: ${subject || "Break"}, Duration: ${duration} mins`);
   
   // If it's a study session, update Friday's memory so Friday becomes aware of it!
   if (type === "study") {
     try {
-      const memory = readMemory();
+      const memory = await readMemory();
       if (!memory.facts) memory.facts = [];
 
       const factPrefix = "NEET study stats:";
@@ -721,7 +801,7 @@ app.post("/api/session/complete", (req, res) => {
         memory.facts.push(`${factPrefix} Completed ${completedCount} sessions, total ${totalMins} minutes study`);
       }
       
-      writeMemory(memory);
+      await writeMemory(memory);
       console.log("Friday memory successfully updated with Pomodoro statistics!");
     } catch (err) {
       console.error("Failed to update memory with Pomodoro stats:", err);
