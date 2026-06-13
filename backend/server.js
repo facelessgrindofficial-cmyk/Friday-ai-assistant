@@ -421,7 +421,86 @@ ${csKeyboardClass}
 
 const app = express();
 const PORT = 5001;
-const tts = new EdgeTTS();
+
+const http = require("http");
+const { WebSocketServer } = require("ws");
+const { spawn } = require("child_process");
+
+const path = require("path");
+
+let mouseProcess = null;
+
+function startMouseController() {
+  const scriptPath = path.join(__dirname, "mouse_controller.ps1");
+  try {
+    mouseProcess = spawn("powershell", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      scriptPath
+    ]);
+    
+    mouseProcess.stdout.on("data", (data) => {
+      console.log("Mouse Controller:", data.toString().trim());
+    });
+
+    mouseProcess.stderr.on("data", (data) => {
+      console.error("Mouse Controller Error:", data.toString().trim());
+    });
+
+    mouseProcess.on("exit", (code) => {
+      console.log("Mouse Controller exited with code", code);
+      mouseProcess = null;
+    });
+  } catch (err) {
+    console.error("Failed to start mouse controller:", err);
+  }
+}
+
+function sendMouseCommand(cmd) {
+  if (!mouseProcess) {
+    startMouseController();
+  }
+  if (mouseProcess && mouseProcess.stdin.writable) {
+    mouseProcess.stdin.write(cmd + "\n");
+  }
+}
+
+// Clean up mouse process on exit
+process.on("exit", () => {
+  if (mouseProcess) {
+    try { mouseProcess.stdin.write("exit\n"); } catch (e) {}
+  }
+});
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+wss.on("connection", (ws) => {
+  console.log("WebSocket client connected for gesture control");
+  
+  ws.on("message", (message) => {
+    try {
+      const data = JSON.parse(message.toString());
+      if (data.type === "move") {
+        sendMouseCommand(`MOVE ${Math.round(data.x)} ${Math.round(data.y)}`);
+      } else if (data.type === "click_down") {
+        sendMouseCommand("CLICK_DOWN");
+      } else if (data.type === "click_up") {
+        sendMouseCommand("CLICK_UP");
+      } else if (data.type === "right_click") {
+        sendMouseCommand("RIGHT_CLICK");
+      }
+    } catch (err) {
+      console.error("Error parsing WebSocket message:", err);
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("WebSocket client disconnected");
+  });
+});
 
 app.use(cors());
 app.use(express.json());
@@ -643,15 +722,39 @@ app.post("/api/tts", async (req, res) => {
   try {
     // Remove markdown characters like *, _, # that might break TTS or sound weird
     const cleanText = text.replace(/[*_#]/g, '').trim();
+    const localTts = new EdgeTTS();
     
-    await tts.synthesize(cleanText, 'hi-IN-SwaraNeural', {
-      rate: '+15%',
-      pitch: '+5Hz',
-      outputFormat: Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3
-    });
+    let buffer;
+    try {
+      await localTts.synthesize(cleanText, 'hi-IN-SwaraNeural', {
+        rate: '+15%',
+        pitch: '+5Hz',
+        outputFormat: Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3
+      });
+      buffer = localTts.toBuffer();
+      console.log("Speech synthesized via Edge TTS (hi-IN-SwaraNeural)!");
+    } catch (primaryErr) {
+      console.warn("Primary voice hi-IN-SwaraNeural failed, trying MadhurNeural fallback...", primaryErr.message);
+      try {
+        await localTts.synthesize(cleanText, 'hi-IN-MadhurNeural', {
+          rate: '+15%',
+          pitch: '+5Hz',
+          outputFormat: Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3
+        });
+        buffer = localTts.toBuffer();
+        console.log("Speech synthesized via Edge TTS (hi-IN-MadhurNeural fallback)!");
+      } catch (secErr) {
+        console.warn("Fallback MadhurNeural failed, trying NeerjaNeural...", secErr.message);
+        await localTts.synthesize(cleanText, 'en-IN-NeerjaNeural', {
+          rate: '+15%',
+          pitch: '+5Hz',
+          outputFormat: Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3
+        });
+        buffer = localTts.toBuffer();
+        console.log("Speech synthesized via Edge TTS (en-IN-NeerjaNeural fallback)!");
+      }
+    }
     
-    const buffer = tts.toBuffer();
-    console.log("Speech synthesized via Edge TTS (Swara)!");
     res.set("Content-Type", "audio/mpeg");
     res.set("x-tts-provider", "edgetts");
     res.send(buffer);
@@ -823,6 +926,6 @@ app.get("/api/quotes", (req, res) => {
   res.json(MOTIVATIONAL_QUOTES);
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`FRIDAY Backend running on http://localhost:${PORT}`);
 });

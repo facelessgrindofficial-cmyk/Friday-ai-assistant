@@ -111,3 +111,61 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(59, 130, 246, 0.5);
 }
+
+/* ========== GLITCH MORPH TRANSITION ========== */
+@keyframes glitch-bar {
+  0% { transform: translateX(0); opacity: 0; }
+  15% { transform: translateX(-8px); opacity: 0.9; }
+  30% { transform: translateX(6px); opacity: 0.7; }
+  50% { transform: translateX(-4px); opacity: 0.5; }
+  70% { transform: translateX(3px); opacity: 0.3; }
+  100% { transform: translateX(0); opacity: 0; }
+}
+
+@keyframes glitch-flash {
+  0% { opacity: 0; }
+  10% { opacity: 0.12; }
+  20% { opacity: 0; }
+  35% { opacity: 0.08; }
+  50% { opacity: 0.15; }
+  65% { opacity: 0; }
+  80% { opacity: 0.06; }
+  100% { opacity: 0; }
+}
+
+@keyframes glitch-shift {
+  0% { transform: translate(0, 0) skewX(0); }
+  10% { transform: translate(-3px, 1px) skewX(-0.5deg); }
+  20% { transform: translate(2px, -1px) skewX(0.3deg); }
+  35% { transform: translate(-1px, 2px) skewX(-0.2deg); }
+  50% { transform: translate(3px, 0) skewX(0.5deg); }
+  65% { transform: translate(-2px, -1px) skewX(-0.3deg); }
+  80% { transform: translate(1px, 1px) skewX(0.1deg); }
+  100% { transform: translate(0, 0) skewX(0); }
+}
+
+@keyframes scan-sweep {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.glitch-container {
+  animation: glitch-shift 0.45s steps(4) forwards;
+}
+
+.glitch-scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 255, 0.02) 2px,
+    rgba(0, 255, 255, 0.02) 4px
+  );
+  pointer-events: none;
+}
+
+.glitch-scan-bar {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.25), transparent);
+  animation: scan-sweep 0.4s linear forwards;
+}

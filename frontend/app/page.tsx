@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Settings, Terminal, Activity, Volume2, VolumeX, MessageSquare, Trash2, Edit2, Plus, ChevronDown } from "lucide-react";
+import { Mic, MicOff, Settings, Terminal, Activity, Volume2, VolumeX, MessageSquare, Trash2, Edit2, Plus, ChevronDown, Monitor } from "lucide-react";
 import FridayOrb from "@/components/FridayOrb";
+import GestureControl from "@/components/GestureControl";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 
@@ -70,7 +71,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
 
   // NEET Study Pomodoro States
-  const [activeTab, setActiveTab] = useState<"chat" | "neet">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "neet" | "gesture">("chat");
   const [timerState, setTimerState] = useState<"study" | "short_break" | "long_break">("study");
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [totalTime, setTotalTime] = useState(25 * 60);
@@ -861,29 +862,40 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
         
         {/* Tab Switcher */}
-        <div className="flex gap-2 mb-6 border-b border-white/5 pb-4">
+        <div className="flex gap-1 mb-6 border-b border-white/5 pb-4">
           <button
             onClick={() => setActiveTab("chat")}
             className={clsx(
-              "flex-1 py-1.5 px-2 rounded-lg font-mono text-[10px] font-bold tracking-wider border transition-all flex items-center justify-center gap-1",
+              "flex-1 py-1.5 px-1 rounded-lg font-mono text-[8px] font-bold tracking-wider border transition-all flex items-center justify-center gap-0.5",
               activeTab === "chat"
                 ? "bg-primary/20 text-primary border-primary/30"
                 : "bg-white/5 text-white/40 border-transparent hover:text-white/60"
             )}
           >
-            <MessageSquare className="w-3 h-3" />
-            CHAT
+            <MessageSquare className="w-2.5 h-2.5" />
+            AI_CHAT
           </button>
           <button
             onClick={() => setActiveTab("neet")}
             className={clsx(
-              "flex-1 py-1.5 px-2 rounded-lg font-mono text-[10px] font-bold tracking-wider border transition-all flex items-center justify-center gap-1",
+              "flex-1 py-1.5 px-1 rounded-lg font-mono text-[8px] font-bold tracking-wider border transition-all flex items-center justify-center gap-0.5",
               activeTab === "neet"
                 ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                 : "bg-white/5 text-white/40 border-transparent hover:text-white/60"
             )}
           >
-            🩺 NEET_HUB
+            🩺 NEET
+          </button>
+          <button
+            onClick={() => setActiveTab("gesture")}
+            className={clsx(
+              "flex-1 py-1.5 px-1 rounded-lg font-mono text-[8px] font-bold tracking-wider border transition-all flex items-center justify-center gap-0.5",
+              activeTab === "gesture"
+                ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                : "bg-white/5 text-white/40 border-transparent hover:text-white/60"
+            )}
+          >
+            🖐️ GESTURE
           </button>
         </div>
 
@@ -942,7 +954,7 @@ export default function Home() {
               ))}
             </div>
           </>
-        ) : (
+        ) : activeTab === "neet" ? (
           /* NEET Sidebar Panels */
           <div className="flex-1 flex flex-col gap-5 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             {/* Subject Selector */}
@@ -1076,6 +1088,33 @@ export default function Home() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Gesture Sidebar Panels */
+          <div className="flex-1 flex flex-col gap-4">
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <Monitor className="text-purple-400 w-5 h-5 text-glow animate-pulse" />
+              <h2 className="font-mono text-sm font-bold tracking-widest text-white/90">PC_GESTURE</h2>
+            </div>
+            <div className="border border-white/5 bg-black/20 rounded-xl p-3 flex flex-col gap-2 font-mono text-[10px] text-white/60 leading-relaxed">
+              <span className="text-white/35 tracking-wider font-bold">SYSTEM STATUS:</span>
+              <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 border-dashed">
+                <span>WS CONNECTIONS</span>
+                <span className="text-green-400">ONLINE</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 border-dashed">
+                <span>REACTION TIME</span>
+                <span className="text-cyan-400">~15ms</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 border-dashed">
+                <span>WEBCAM RESOLUTION</span>
+                <span className="text-purple-400">640x480</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>SMOOTH FILTER</span>
+                <span className="text-purple-400">EXPONENTIAL</span>
               </div>
             </div>
           </div>
@@ -1374,7 +1413,7 @@ export default function Home() {
               </div>
             </div>
           </>
-        ) : (
+        ) : activeTab === "neet" ? (
           /* NEET POMODORO MAIN CENTER VIEW */
           <div className="flex-grow w-full max-w-3xl flex flex-col items-center justify-center z-10 relative py-2 animate-fade-in">
             
@@ -1507,6 +1546,8 @@ export default function Home() {
             )}
 
           </div>
+        ) : (
+          <GestureControl backendUrl={BACKEND_URL} />
         )}
         
       </main>
