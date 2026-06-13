@@ -131,7 +131,7 @@ def get_badge(status, detail):
     else:
         return f"{Fore.WHITE}[WAITING] "
 
-def draw_starting_console(backend_s, frontend_s, gesture_s, msg):
+def draw_starting_console(backend_s, frontend_s, gesture_s, msg, show_logs=False):
     clear_console()
     print(f"{Fore.CYAN}  ╔═══════════════════════════════════╗")
     print(f"{Fore.CYAN}  ║      FRIDAY AI — Starting...      ║")
@@ -142,6 +142,12 @@ def draw_starting_console(backend_s, frontend_s, gesture_s, msg):
     print(f"{Fore.CYAN}  ╠═══════════════════════════════════╣")
     print(f"{Fore.CYAN}  ║  {msg:<32} ║")
     print(f"{Fore.CYAN}  ╚═══════════════════════════════════╝")
+    
+    if show_logs:
+        print(f"\n{Fore.YELLOW}--- LIVE BACKEND LOGS ---")
+        with backend_log_lock:
+            for line in backend_log_lines[-8:]:
+                print(f" {Fore.WHITE}{line}")
 
 def draw_ready_console():
     clear_console()
@@ -156,16 +162,55 @@ def draw_ready_console():
     print(f"{Fore.GREEN}  ╚═══════════════════════════════════╝")
 
 # Process Spawning Methods
+backend_log_lines = []
+backend_log_lock = threading.Lock()
+
 def start_backend():
+    global backend_log_lines
     write_log("Starting Node.js Backend...")
+    
+    os.makedirs(os.path.join(WORKSPACE_DIR, "logs"), exist_ok=True)
+    log_filepath = os.path.join(WORKSPACE_DIR, "logs", "backend.log")
+    
+    try:
+        with open(log_filepath, "w", encoding="utf-8") as f:
+            f.write("")
+    except Exception:
+        pass
+        
     processes["backend"] = subprocess.Popen(
         ["node", "server.js"],
         cwd=os.path.join(WORKSPACE_DIR, "backend"),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
         shell=True
     )
     save_pids()
+    
+    def log_reader():
+        global backend_log_lines
+        try:
+            # Safe iterator to read line-by-line in background
+            for line in processes["backend"].stdout:
+                if not line:
+                    break
+                try:
+                    with open(log_filepath, "a", encoding="utf-8") as f:
+                        f.write(line)
+                except Exception:
+                    pass
+                with backend_log_lock:
+                    backend_log_lines.append(line.strip())
+                    if len(backend_log_lines) > 15:
+                        backend_log_lines.pop(0)
+        except Exception:
+            pass
+            
+    t = threading.Thread(target=log_reader)
+    t.daemon = True
+    t.start()
 
 def start_frontend():
     write_log("Starting Next.js Frontend...")
@@ -198,10 +243,39 @@ def start_sequence():
     draw_starting_console("⏳", "⚪", "⚪", "Starting Backend...")
     start_backend()
     
-    # Wait for backend health
-    while not health.check_backend():
+    # Wait for backend health with a 60-second timeout
+    start_time = time.time()
+    backend_timeout = 60.0
+    backend_healthy = False
+    
+    while time.time() - start_time < backend_timeout:
+        elapsed = int(time.time() - start_time)
+        draw_starting_console(
+            "⏳", "⚪", "⚪", 
+            f"Waiting for Backend (5001)... [{elapsed}s / 60s timeout]",
+            show_logs=True
+        )
+        if health.check_backend():
+            backend_healthy = True
+            break
         time.sleep(1.0)
-        draw_starting_console("⏳", "⚪", "⚪", "Waiting for Backend (5001)...")
+        
+    if not backend_healthy:
+        clear_console()
+        print(f"{Fore.RED}=======================================================")
+        print(f"{Fore.RED}❌ Backend failed to start. Check logs at f:\\Friday\\logs\\backend.log")
+        print(f"{Fore.RED}=======================================================")
+        print("\nLast backend log output:")
+        with backend_log_lock:
+            if backend_log_lines:
+                for line in backend_log_lines:
+                    print(f"  {line}")
+            else:
+                print("  No logs captured from backend process.")
+        print("\nPress Enter to exit...")
+        input()
+        shutdown_all()
+        sys.exit(1)
         
     # 2. Start Frontend
     draw_starting_console("✅", "⏳", "⚪", "Starting Frontend...")
