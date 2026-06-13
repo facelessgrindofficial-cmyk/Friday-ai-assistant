@@ -426,8 +426,6 @@ const http = require("http");
 const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
 
-const path = require("path");
-
 let mouseProcess = null;
 
 function startMouseController() {
