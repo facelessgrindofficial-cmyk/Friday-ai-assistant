@@ -1,49 +1,100 @@
-# gesture_detector.py
 import cv2
-import mediapipe as mp
 import math
 import config
+import os
+import urllib.request
+import time
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+# --- Monkey-patch cv2.VideoCapture to try index 1 if 0 fails ---
+_original_VideoCapture = cv2.VideoCapture
+
+class FallbackVideoCapture(_original_VideoCapture):
+    def __init__(self, index, *args, **kwargs):
+        super().__init__(index, *args, **kwargs)
+        if index == 0 and not self.isOpened():
+            print("[SYSTEM] Camera index 0 failed. Trying camera index 1...")
+            super().__init__(1, *args, **kwargs)
+
+cv2.VideoCapture = FallbackVideoCapture
+# ---------------------------------------------------------------
 
 class GestureDetector:
     def __init__(self):
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            model_complexity=0,  # Fast model for low CPU usage
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.7
-        )
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
+        model_path = "hand_landmarker.task"
+        if not os.path.exists(model_path):
+            print("[SYSTEM] Downloading hand_landmarker.task...")
+            url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+            try:
+                urllib.request.urlretrieve(url, model_path)
+                print("[SYSTEM] Model downloaded successfully.")
+            except Exception as e:
+                print(f"[ERROR] Failed to download model: {e}")
+
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            num_hands=1,
+            min_hand_detection_confidence=0.5,
+            min_hand_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+            running_mode=vision.RunningMode.VIDEO)
+        self.detector = vision.HandLandmarker.create_from_options(options)
         
         self.history = []
         self.last_confirmed_gesture = "NONE"
+        self._last_timestamp_ms = 0
         
     def process_frame(self, frame):
         """
-        Process the image with MediaPipe and return the landmarks and hand tracking result.
+        Process the image with MediaPipe Tasks and return the landmarks and hand tracking result.
         """
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(rgb_frame)
-        return results
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        
+        # Calculate strictly increasing timestamp in ms
+        timestamp_ms = int(time.time() * 1000)
+        if timestamp_ms <= self._last_timestamp_ms:
+            timestamp_ms = self._last_timestamp_ms + 1
+        self._last_timestamp_ms = timestamp_ms
+        
+        results = self.detector.detect_for_video(mp_image, timestamp_ms)
+        
+        class DummyHand:
+            def __init__(self, lms):
+                self.landmark = lms
+
+        class DummyResults:
+            def __init__(self, res):
+                if res.hand_landmarks:
+                    self.multi_hand_landmarks = [DummyHand(hl) for hl in res.hand_landmarks]
+                else:
+                    self.multi_hand_landmarks = None
+                    
+        return DummyResults(results)
 
     def classify_gesture(self, landmarks):
         """
         Classify the current hand posture based on landmark positions.
         """
-        # 1. Check Pinch (Index Tip to Thumb Tip distance)
+        # Calculate 2D hand size (Wrist 0 to Middle MCP 9)
+        wrist = landmarks[0]
+        middle_mcp = landmarks[9]
+        hand_size = math.sqrt((wrist.x - middle_mcp.x)**2 + (wrist.y - middle_mcp.y)**2)
+        if hand_size < 0.01:
+            hand_size = 0.01
+
+        # 1. Check Pinch (Index Tip 8 to Thumb Tip 4 distance, normalized to hand size)
         thumb_tip = landmarks[4]
         index_tip = landmarks[8]
         
-        # Calculate raw pixel coordinates on a 640x480 frame
-        t_x, t_y = thumb_tip.x * config.FRAME_WIDTH, thumb_tip.y * config.FRAME_HEIGHT
-        i_x, i_y = index_tip.x * config.FRAME_WIDTH, index_tip.y * config.FRAME_HEIGHT
+        pinch_dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
+        pinch_ratio = pinch_dist / hand_size
         
-        pinch_dist = math.sqrt((t_x - i_x)**2 + (t_y - i_y)**2)
-        
-        if pinch_dist < config.PINCH_THRESHOLD_PX:
+        if pinch_ratio < config.PINCH_THRESHOLD_RATIO:
             return "PINCH"
             
         # 2. Check individual finger extensions (UP if tip is higher than PIP joint)
@@ -112,11 +163,25 @@ class GestureDetector:
         Draw the hand skeleton onto the image frame.
         """
         if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                self.mp_drawing.draw_landmarks(
-                    frame,
-                    hand_landmarks,
-                    self.mp_hands.HAND_CONNECTIONS,
-                    self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
-                    self.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2)
-                )
+            h, w, _ = frame.shape
+            for hand in results.multi_hand_landmarks:
+                landmarks = hand.landmark
+                points = []
+                for lm in landmarks:
+                    px, py = int(lm.x * w), int(lm.y * h)
+                    points.append((px, py))
+                    cv2.circle(frame, (px, py), 2, (0, 255, 0), -1)
+                
+                # Draw connections
+                HAND_CONNECTIONS = [
+                    (0, 1), (1, 2), (2, 3), (3, 4),
+                    (0, 5), (5, 6), (6, 7), (7, 8),
+                    (5, 9), (9, 10), (10, 11), (11, 12),
+                    (9, 13), (13, 14), (14, 15), (15, 16),
+                    (13, 17), (17, 18), (18, 19), (19, 20),
+                    (0, 17), (5, 9), (9, 13), (13, 17)
+                ]
+                for connection in HAND_CONNECTIONS:
+                    pt1 = points[connection[0]]
+                    pt2 = points[connection[1]]
+                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)

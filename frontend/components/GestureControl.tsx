@@ -14,7 +14,7 @@ export default function GestureControl({ backendUrl }: GestureControlProps) {
   const [isTracking, setIsTracking] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [pinchSensitivity, setPinchSensitivity] = useState(0.28);
-  const [smoothingFactor, setSmoothingFactor] = useState(0.08);
+  const [smoothingFactor, setSmoothingFactor] = useState(0.05);
 
   // Camera device selection
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
@@ -344,9 +344,10 @@ export default function GestureControl({ backendUrl }: GestureControlProps) {
     const prev = prevCoordsRef.current;
     const dx = rawX - prev.x, dy = rawY - prev.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const alpha = Math.min(0.40, smoothingFactor + dist / 400);
+    // Lower cap and higher divisor for extremely smooth, "soft" movement
+    const alpha = Math.min(0.25, smoothingFactor + dist / 1000);
 
-    if (dist > 2.5) {
+    if (dist > 3.0) {
       const sX = prev.x * (1 - alpha) + rawX * alpha;
       const sY = prev.y * (1 - alpha) + rawY * alpha;
       prevCoordsRef.current = { x: sX, y: sY };
@@ -361,12 +362,12 @@ export default function GestureControl({ backendUrl }: GestureControlProps) {
     ctx.arc((1 - indexTip.x) * canvas.width, indexTip.y * canvas.height, 8, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Pinch detection
+    // Pinch detection (using 2D coordinates to prevent Z-depth noise/jitter)
     const handSize = Math.sqrt(
-      Math.pow(wrist.x - middleBase.x, 2) + Math.pow(wrist.y - middleBase.y, 2) + Math.pow(wrist.z - middleBase.z, 2)
+      Math.pow(wrist.x - middleBase.x, 2) + Math.pow(wrist.y - middleBase.y, 2)
     );
     const pinchDist = Math.sqrt(
-      Math.pow(indexTip.x - thumbTip.x, 2) + Math.pow(indexTip.y - thumbTip.y, 2) + Math.pow(indexTip.z - thumbTip.z, 2)
+      Math.pow(indexTip.x - thumbTip.x, 2) + Math.pow(indexTip.y - thumbTip.y, 2)
     );
     const pinchRatio = pinchDist / handSize;
 
@@ -390,9 +391,9 @@ export default function GestureControl({ backendUrl }: GestureControlProps) {
       }
     }
 
-    // Right click (middle finger pinch)
+    // Right click (middle finger pinch) - using 2D coordinates
     const rightDist = Math.sqrt(
-      Math.pow(middleTip.x - thumbTip.x, 2) + Math.pow(middleTip.y - thumbTip.y, 2) + Math.pow(middleTip.z - thumbTip.z, 2)
+      Math.pow(middleTip.x - thumbTip.x, 2) + Math.pow(middleTip.y - thumbTip.y, 2)
     );
     const rightRatio = rightDist / handSize;
 

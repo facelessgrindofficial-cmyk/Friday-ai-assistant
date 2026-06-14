@@ -178,6 +178,8 @@ def start_backend():
     except Exception:
         pass
         
+    env = os.environ.copy()
+    env["NODE_OPTIONS"] = "--max-old-space-size=1024"
     processes["backend"] = subprocess.Popen(
         ["node", "server.js"],
         cwd=os.path.join(WORKSPACE_DIR, "backend"),
@@ -185,7 +187,8 @@ def start_backend():
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        shell=True
+        shell=True,
+        env=env
     )
     save_pids()
     
@@ -214,12 +217,15 @@ def start_backend():
 
 def start_frontend():
     write_log("Starting Next.js Frontend...")
+    env = os.environ.copy()
+    env["NODE_OPTIONS"] = "--max-old-space-size=2048"
     processes["frontend"] = subprocess.Popen(
         ["npm", "run", "dev"],
         cwd=os.path.join(WORKSPACE_DIR, "frontend"),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        shell=True
+        shell=True,
+        env=env
     )
     save_pids()
 

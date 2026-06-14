@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Settings, Terminal, Activity, Volume2, VolumeX, MessageSquare, Trash2, Edit2, Plus, ChevronDown, Monitor } from "lucide-react";
+import { Mic, MicOff, Settings, Terminal, Activity, Volume2, VolumeX, MessageSquare, Trash2, Edit2, Plus, ChevronDown, Monitor, Hand } from "lucide-react";
 import FridayOrb from "@/components/FridayOrb";
 import GestureControl from "@/components/GestureControl";
 import { motion } from "framer-motion";
@@ -69,6 +69,7 @@ export default function Home() {
 
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [showGesturePreview, setShowGesturePreview] = useState(false);
 
   // NEET Study Pomodoro States
   const [activeTab, setActiveTab] = useState<"chat" | "neet" | "gesture">("chat");
@@ -1385,6 +1386,15 @@ export default function Home() {
                     <Settings className="w-3.5 h-3.5" />
                   </button>
 
+                  {/* Gesture Toggle Button */}
+                  <button 
+                    onClick={() => setShowGesturePreview(!showGesturePreview)}
+                    className={`p-2 rounded-full transition-colors ${showGesturePreview ? 'bg-purple-500/30 text-purple-400 border border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.2)] animate-pulse' : 'bg-white/5 text-white/30 hover:text-white/60'}`}
+                    title="Toggle Gesture Control"
+                  >
+                    <Hand className="w-3.5 h-3.5" />
+                  </button>
+
                   {/* Output Mute/Unmute */}
                   <button 
                     onClick={() => setIsMuted(!isMuted)}
@@ -1550,6 +1560,25 @@ export default function Home() {
           <GestureControl backendUrl={BACKEND_URL} />
         )}
         
+        {showGesturePreview && activeTab !== "gesture" && (
+          <div className="fixed bottom-24 right-8 z-50 w-80 bg-black/90 border border-purple-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(168,85,247,0.25)] backdrop-blur-md flex flex-col gap-2">
+            <div className="flex justify-between items-center pb-2 border-b border-white/10">
+              <span className="font-mono text-[10px] font-bold text-purple-400 flex items-center gap-1.5">
+                <Hand className="w-3.5 h-3.5" />
+                GESTURE_LIVE_FEED
+              </span>
+              <button 
+                onClick={() => setShowGesturePreview(false)} 
+                className="text-white/40 hover:text-white font-mono text-[9px] uppercase font-bold py-0.5 px-2 rounded hover:bg-white/5 transition-all"
+              >
+                CLOSE
+              </button>
+            </div>
+            <div className="w-full max-h-[360px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+              <GestureControl backendUrl={BACKEND_URL} />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -22,16 +22,16 @@ class UIOverlay:
         Check if mouse click happened inside any of our button boundaries.
         """
         if event == cv2.EVENT_LBUTTONDOWN:
-            # 1. CAM ON/OFF button: x in [660, 745], y in [360, 390]
-            if 660 <= x <= 745 and 360 <= y <= 390:
+            # 1. CAM ON/OFF button: x in [660, 745], y in [350, 380]
+            if 660 <= x <= 745 and 350 <= y <= 380:
                 params['toggle_cam'] = True
                 
-            # 2. PAUSE button: x in [755, 835], y in [360, 390]
-            elif 755 <= x <= 835 and 360 <= y <= 390:
+            # 2. PAUSE button: x in [755, 835], y in [350, 380]
+            elif 755 <= x <= 835 and 350 <= y <= 380:
                 params['toggle_pause'] = True
                 
-            # 3. QUIT button: x in [660, 835], y in [410, 440]
-            elif 660 <= x <= 835 and 410 <= y <= 440:
+            # 3. QUIT button: x in [660, 835], y in [400, 430]
+            elif 660 <= x <= 835 and 400 <= y <= 430:
                 params['quit'] = True
 
     def draw_ui(self, frame, gesture, state, fps, cpu_percent, cam_on, paused, hand_count):
