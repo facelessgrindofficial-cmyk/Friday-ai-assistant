@@ -26,7 +26,7 @@ interface AudioDevice {
   label: string;
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://friday-ai-assistant-production.up.railway.app";
 
 export default function Home() {
   const [aiState, setAiState] = useState<AIState>("idle");

@@ -72,14 +72,29 @@ export default function GestureControl({ backendUrl }: GestureControlProps) {
       const candidates: string[] = [];
       try {
         const urlObj = new URL(backendUrl);
-        const port = urlObj.port || "5001";
         const proto = urlObj.protocol === "https:" ? "wss" : "ws";
-        // Try page hostname first (most likely to work in browser)
-        if (typeof window !== "undefined") {
-          candidates.push(`${proto}://${window.location.hostname}:${port}`);
+        
+        // If the URL has an explicit port (like :5001), use it.
+        // Otherwise, if it's localhost/127.0.0.1, default to 5001.
+        // If it's a hosted production URL, do not append a port.
+        let portStr = "";
+        if (urlObj.port) {
+          portStr = `:${urlObj.port}`;
+        } else if (urlObj.hostname === "localhost" || urlObj.hostname === "127.0.0.1") {
+          portStr = ":5001";
         }
-        candidates.push(`${proto}://localhost:${port}`);
-        candidates.push(`${proto}://127.0.0.1:${port}`);
+
+        // 1. Try the exact host from backendUrl
+        candidates.push(`${proto}://${urlObj.hostname}${portStr}`);
+
+        // 2. Try window.location.hostname (in case of self-hosting)
+        if (typeof window !== "undefined" && window.location.hostname !== urlObj.hostname) {
+          candidates.push(`${proto}://${window.location.hostname}${portStr}`);
+        }
+
+        // 3. Always include local fallbacks (using ws:// to bypass WSS block for localhost in some browsers)
+        candidates.push("ws://localhost:5001");
+        candidates.push("ws://127.0.0.1:5001");
       } catch {
         candidates.push("ws://localhost:5001");
       }
